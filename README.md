@@ -1,2 +1,2 @@
 # BattleShip
-A repository to hold some code snippets from my and Christopher Robles' Battleship website project.
+A repository to hold some code snippets from my and Christopher Robles' Battleship web development project in which we created a site where users can play the Battleship board game against other players. The site contains a leaderboard that updates based on the wins and losses of each player, and profile pages that display the game statistics of a specific player. The users can create and join rooms that contain the game and a real time chat, both of which are driven via websockets.
