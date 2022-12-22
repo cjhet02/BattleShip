@@ -1,0 +1,155 @@
+<!-- chat/templates/chat/room.html -->
+<!-- HTML file for game room, includes JS script for game logic and communicating with the websockets -->
+{% extends "base.html" %}
+{% load static %}
+{% block content%}
+
+<head>
+    <meta charset="utf-8"/>
+    <title>Game Room</title>
+</head>
+<body>
+    <div class="gameboard_container">
+        <div id="gameboard">
+            <button id="cell_button"></button>
+        </div>
+        <div id="gameboard1">
+            <button id="cell_button1"></button>
+        </div>
+    </div>
+    <div id="ready_button">
+        <button class="button" id="butt"> Ready Up </button>
+    </div>
+    <h4>Chat:</h4>
+    <textarea id="chat-log" cols="100" rows="20"></textarea><br>
+    <input id="chat-message-input" type="text" size="100"><br>
+    <input id="chat-message-submit" type="button" value="Send">
+    {{ room_name|json_script:"room-name" }}
+    <script>
+        const roomName = JSON.parse(document.getElementById('room-name').textContent);
+
+        const chatSocket = new WebSocket(
+            'ws://'
+            + window.location.host
+            + '/ws/chat/'
+            + roomName
+            + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if(data.array){
+                readyCount = data.readyCount;
+                if(readyCount >= 2 && gameStarted == false){
+                    gameStarted = true;
+                    ready = false;
+                    buildBoard();
+                    readyCount = 0;
+                }
+                if(secondReady == false)
+                    theBoard = data.array;
+            //} else if(data.winner){
+            //    document.querySelector('#chat-log').value += (data.message + '\n');
+            //   
+            } else if(data.shotX){
+                var shootingSelf = data.shootingSelf;
+                readyCount = data.readyCount;
+                shotX = data.shotX;
+                shotY = data.shotY;
+                if(shootingSelf == false){ //means we're being shot at
+                    //store shot for shipBoard
+                    incomingID = "#x" + String(shotX) + String(shotY);
+                    if(shipBoard[shotX][shotY] == 1)
+                        incomingColor = 'red';
+                    else
+                        incomingColor = 'grey';
+                } else {
+                    //store shot for TheBoard
+                    //theBoard[x][y] = -1;
+                    outgoingID = "#p" + String(shotX) + String(shotY);
+                    if(theBoard[shotX][shotY] == 1){
+                        outgoingColor = 'red';
+                        hits++;
+                        console.log("hits " + hits);
+                    }
+                    else
+                        outgoingColor = 'grey';
+                }
+                if(readyCount >= 2 && gameStarted == true){
+                    ready = false;
+                    readyCount = 0;
+                    shots = 0;
+
+                    document.querySelector(incomingID).style.background = incomingColor;
+                    document.querySelector(outgoingID).style.background = outgoingColor;
+
+                    if (hits >= shipNum) {
+                        if(gameOver == false){
+                            gameOver = true;
+                            chatSocket.send(JSON.stringify({
+                                'winMessage': ' won!'
+                            }));
+                        }
+                    }
+                }
+
+            } else {
+                //if(data.array) check for array or message (dynamic typing??)
+                document.querySelector('#chat-log').value += (data.message + '\n');
+            }
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#chat-message-input').focus();
+        document.querySelector('#chat-message-input').onkeyup = function(e) {
+            if (e.keyCode === 13) {  // enter, return
+                document.querySelector('#chat-message-submit').click();
+            }
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            chatSocket.send(JSON.stringify({
+                'chatMessage': message
+            }));
+            messageInputDom.value = '';
+        };
+
+        document.querySelector('#butt').onclick = function(e) {
+            if(ready == true){
+                alert("You already readied up!");
+            } else if(gameOver == true){
+                alert("The game has already ended!");
+            } else if(readyUp()){
+                if(ready == true && gameStarted == false){
+                    if(readyCount == 1)
+                        secondReady = true;
+                    chatSocket.send(JSON.stringify({
+                        'systemMessage': ' is ready to play!'
+                    }));
+
+                    chatSocket.send(JSON.stringify({
+                        'shipArray': shipBoard,
+                        'readyCount': readyCount + 1,
+                    }));
+                }
+            } else if(readyTurn()){
+                if(ready == true && gameStarted == true){
+                    chatSocket.send(JSON.stringify({
+                        'systemMessage': ' is ready to shoot!'
+                    }));
+                    chatSocket.send(JSON.stringify({
+                        'shotX': targetX,
+                        'shotY': targetY,
+                        'readyCount': readyCount + 1,
+                    }));
+                }
+            }
+        };
+    </script>
+</body>
+{% endblock %}
